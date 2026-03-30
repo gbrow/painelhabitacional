@@ -181,76 +181,75 @@ server <- function(input, output) {
     # Verificar se filtered_data$data existe e tem dados
     req(filtered_data$data)
     
-    # Remover geometria para exibir na tabela
-    if (nrow(filtered_data$data) > 0) {
-      st_drop_geometry(filtered_data$data)
-    } else {
-      data.frame(Mensagem = "Nenhum dado encontrado com os filtros selecionados")
+    # Verificar se há dados
+    if (is.null(filtered_data$data) || nrow(filtered_data$data) == 0) {
+      return(data.frame(Mensagem = "Nenhum município encontrado com os filtros selecionados"))
     }
+    
+    # Remover geometria para exibir na tabela
+    dados_tabela <- tryCatch({
+      st_drop_geometry(filtered_data$data)
+    }, error = function(e) {
+      return(data.frame(Mensagem = "Erro ao processar dados para tabela"))
+    })
+    
+    # Configurar opções do DT
+    datatable(dados_tabela,
+              options = list(
+                pageLength = 10,
+                scrollX = TRUE,
+                language = list(url = '//cdn.datatables.net/plug-ins/1.10.11/i18n/Portuguese-Brasil.json')
+              ),
+              rownames = FALSE)
   })
   #configurando função observe que atualiza os dados filtrados
+  #configurando função observe que atualiza os dados filtrados
   observe({
-    #fazendo uma cópia dos dados originais
+    # Verificar se mapdata existe
+    req(mapdata)
+    
+    # Criar uma cópia dos dados originais (sem geometria para operações)
     filtermap <- mapdata
     
-    # APLICAR FILTROS SOMENTE SE AS COLUNAS EXISTIREM
-    # Domicílios Compostos
-    if ("dcmp_pr" %in% names(filtermap)) {
-      if (input$filtro_dcomp) {
-        filtermap <- filtermap %>% filter(dcmp_pr > 1.48)
-      } else {
-        filtermap <- filtermap %>% filter(dcmp_pr < 100)
+    # Aplicar filtros de forma segura usando tryCatch
+    tryCatch({
+      # Domicílios Compostos
+      if (input$filtro_dcomp && "dcmp_pr" %in% names(filtermap)) {
+        filtermap <- filtermap[filtermap$dcmp_pr > 1.48, ]
       }
-    } else {
-      print("AVISO: Coluna 'dcmp_pr' não encontrada")
-    }
-    
-    # Domicílios Improvisados
-    if ("dimp_pr" %in% names(filtermap)) {
-      if (input$filtro_dimp) {
-        filtermap <- filtermap %>% filter(dimp_pr > 0.222)
-      } else {
-        filtermap <- filtermap %>% filter(dimp_pr < 100)
+      
+      # Domicílios Improvisados
+      if (input$filtro_dimp && "dimp_pr" %in% names(filtermap)) {
+        filtermap <- filtermap[filtermap$dimp_pr > 0.222, ]
       }
-    } else {
-      print("AVISO: Coluna 'dimp_pr' não encontrada")
-    }
-    
-    # Estrutura Degradada
-    if ("dmstd_p" %in% names(filtermap)) {
-      if (input$filtro_destd) {
-        filtermap <- filtermap %>% filter(dmstd_p > 0.07)
-      } else {
-        filtermap <- filtermap %>% filter(dmstd_p < 100)
+      
+      # Estrutura Degradada
+      if (input$filtro_destd && "dmstd_p" %in% names(filtermap)) {
+        filtermap <- filtermap[filtermap$dmstd_p > 0.07, ]
       }
-    } else {
-      print("AVISO: Coluna 'dmstd_p' não encontrada")
-    }
-    
-    # Domicílios Improvisados em Favelas
-    if ("dfvmp_p" %in% names(filtermap)) {
-      if (input$filtro_dimpfav) {
-        filtermap <- filtermap %>% filter(dfvmp_p > 0.26)
-      } else {
-        filtermap <- filtermap %>% filter(dfvmp_p < 100)
+      
+      # Domicílios Improvisados em Favelas
+      if (input$filtro_dimpfav && "dfvmp_p" %in% names(filtermap)) {
+        filtermap <- filtermap[filtermap$dfvmp_p > 0.26, ]
       }
-    } else {
-      print("AVISO: Coluna 'dfvmp_p' não encontrada")
-    }
-    
-    #selecionando filtro dos 5 municípios mais populosos
-    if (input$filtro_sel_5) {
-      if ("domtotl" %in% names(filtermap)) {
-        filtered_data$data <- filtermap %>%
-          arrange(desc(domtotl)) %>%
-          slice_head(n = 5)
-      } else {
-        filtered_data$data <- filtermap
-        print("AVISO: Coluna 'domtotl' não encontrada para ordenar")
+      
+      # Aplicar filtro dos 5 municípios mais populosos
+      if (input$filtro_sel_5 && nrow(filtermap) > 0) {
+        if ("domtotl" %in% names(filtermap)) {
+          # Ordenar e selecionar top 5
+          filtermap <- filtermap[order(filtermap$domtotl, decreasing = TRUE), ]
+          filtermap <- filtermap[1:min(5, nrow(filtermap)), ]
+        }
       }
-    } else {
+      
+      # Atualizar os dados filtrados
       filtered_data$data <- filtermap
-    }
+      
+    }, error = function(e) {
+      # Em caso de erro, manter dados originais
+      print(paste("Erro ao aplicar filtros:", e$message))
+      filtered_data$data <- mapdata
+    })
   })
   #construção do mapa
   output$plot <- renderPlot( 
