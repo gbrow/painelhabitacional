@@ -23,6 +23,17 @@ library('readxl') #Para carregar arquivo xlsx
 
 mapdata <- st_read("./data/processed/mun_ibge_2024_dom.shp")
 
+print("Colunas disponíveis no shapefile:")
+print(names(mapdata))
+
+# Verificar se as colunas necessárias existem
+colunas_necessarias <- c("dcmp_pr", "dimp_pr", "dmstd_p", "dfvmp_p", "domtotl", "name_mn")
+colunas_faltando <- colunas_necessarias[!colunas_necessarias %in% names(mapdata)]
+
+if(length(colunas_faltando) > 0) {
+  print(paste("ATENÇÃO: Colunas faltando:", paste(colunas_faltando, collapse = ", ")))
+}
+
 #criando dicionário para título de legenda de acordo com a variável
 titles <- c("domtotl" = "Domicílios", 
             "dcomp" = "Domicílios Compostos",
@@ -166,68 +177,79 @@ server <- function(input, output) {
   filtered_data <- reactiveValues(data = mapdata)
   
   #construuindo a tabela de visualização
-  output$table <- 
-    renderDT({
-      #adicionando dados filtrados sem as geometrias
-      filtered_data$data %>% st_drop_geometry()
-      })
+  output$table <- renderDT({
+    # Verificar se filtered_data$data existe e tem dados
+    req(filtered_data$data)
+    
+    # Remover geometria para exibir na tabela
+    if (nrow(filtered_data$data) > 0) {
+      st_drop_geometry(filtered_data$data)
+    } else {
+      data.frame(Mensagem = "Nenhum dado encontrado com os filtros selecionados")
+    }
+  })
   #configurando função observe que atualiza os dados filtrados
   observe({
     #fazendo uma cópia dos dados originais
     filtermap <- mapdata
     
-    #aplicando os filtros de prioridade marcados
-    filtermap <- filtermap %>%
-      # filter(if (input$filtro_DPU) {
-      #   Atuacao_DPU == "Não"
-      # } else {
-      #   Atuacao_DPU == "Não" | Atuacao_DPU == "Sim"
-      # }
-      # ) %>%
-      
-      filter(if (input$filtro_dcomp) {
-        dcmp_pr > 1.48
+    # APLICAR FILTROS SOMENTE SE AS COLUNAS EXISTIREM
+    # Domicílios Compostos
+    if ("dcmp_pr" %in% names(filtermap)) {
+      if (input$filtro_dcomp) {
+        filtermap <- filtermap %>% filter(dcmp_pr > 1.48)
       } else {
-        dcmp_pr < 100
-      }) %>%
-      filter(if (input$filtro_dimp) {
-        dimp_pr > 0.222
+        filtermap <- filtermap %>% filter(dcmp_pr < 100)
+      }
+    } else {
+      print("AVISO: Coluna 'dcmp_pr' não encontrada")
+    }
+    
+    # Domicílios Improvisados
+    if ("dimp_pr" %in% names(filtermap)) {
+      if (input$filtro_dimp) {
+        filtermap <- filtermap %>% filter(dimp_pr > 0.222)
       } else {
-        dimp_pr < 100
-      }) %>%
-      filter(if (input$filtro_destd) {
-        dmstd_p > 0.07
+        filtermap <- filtermap %>% filter(dimp_pr < 100)
+      }
+    } else {
+      print("AVISO: Coluna 'dimp_pr' não encontrada")
+    }
+    
+    # Estrutura Degradada
+    if ("dmstd_p" %in% names(filtermap)) {
+      if (input$filtro_destd) {
+        filtermap <- filtermap %>% filter(dmstd_p > 0.07)
       } else {
-        dmstd_p < 100  
-      }) %>%
-      filter(if (input$filtro_dimpfav) {
-        dfvmp_p > 0.26
+        filtermap <- filtermap %>% filter(dmstd_p < 100)
+      }
+    } else {
+      print("AVISO: Coluna 'dmstd_p' não encontrada")
+    }
+    
+    # Domicílios Improvisados em Favelas
+    if ("dfvmp_p" %in% names(filtermap)) {
+      if (input$filtro_dimpfav) {
+        filtermap <- filtermap %>% filter(dfvmp_p > 0.26)
       } else {
-        dfvmp_p < 100
-      }) #%>%
-      # filter(if (input$filtro_DCA) {
-      #   DCA > 0.065474
-      # } else {
-      #   DCA > 0
-      # }) %>%
-      # filter(if (input$filtro_DPI) {
-      #   DPI > 0.09416
-      # } else {
-      #   DPI > 0
-      # }) %>%
-      # filter(if (input$filtro_NC) {
-      #   NC > 0.3952
-      # } else { 
-      #   NC > 0
-      # })
+        filtermap <- filtermap %>% filter(dfvmp_p < 100)
+      }
+    } else {
+      print("AVISO: Coluna 'dfvmp_p' não encontrada")
+    }
+    
     #selecionando filtro dos 5 municípios mais populosos
     if (input$filtro_sel_5) {
-      filtered_data$data <- filtermap %>%
-      arrange(desc(domtotl)) %>%
-      slice_head(n = 5)
+      if ("domtotl" %in% names(filtermap)) {
+        filtered_data$data <- filtermap %>%
+          arrange(desc(domtotl)) %>%
+          slice_head(n = 5)
+      } else {
+        filtered_data$data <- filtermap
+        print("AVISO: Coluna 'domtotl' não encontrada para ordenar")
+      }
     } else {
       filtered_data$data <- filtermap
-      
     }
   })
   #construção do mapa
