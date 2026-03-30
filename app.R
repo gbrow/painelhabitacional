@@ -21,7 +21,7 @@ library('readxl') #Para carregar arquivo xlsx
 #agregando dados e shapefile
 #mapdata <- left_join(mun_ibge_shp_2024[ , !names(mun_ibge_shp_2024) %in% c("name_muni", "code_state", "abbrev_state", "name_state","code_region", "name_region")], mapdata, by = "code_muni")
 
-mapdata <- st_read("../data/processed/mun_ibge_2024_dom.shp")
+mapdata <- st_read("./data/processed/mun_ibge_2024_dom.shp")
 
 #criando dicionário para título de legenda de acordo com a variável
 titles <- c("domtotl" = "Domicílios", 
@@ -241,7 +241,7 @@ server <- function(input, output) {
       p<- ggplot() 
       
       #verifica a marcação dos checkbox, mostrando a variável selecionada
-      if (!input$checkbox && !input$mostrarfiltrados) {
+      if (!input$mostrarfiltrados) {
         #Se nenhuma checkbox estiver marcada carrega somente a variável
         p <- p + #configurando camada da variável
           #adicionando camada de acordo com a variável selecionada
@@ -253,20 +253,20 @@ server <- function(input, output) {
                               name=titles[input$select],
                               labels = label_number(accuracy = as.numeric(accLabel[input$select]), big.mark = ".",decimal.mark = ","))
         
-      } else if (input$checkbox && !input$mostrarfiltrados) {
-        #com apenas a check box da dpu marcada
-        p <- p + #configurando a camada
-          #adicionando a camada de acordo com a variável
-          geom_sf(data = mapdata, aes( fill = as.numeric(.data[[input$select]])),  colour = "#00000010" ) +
-          #aplicando as cores de acordo com os dicionários
-          scale_fill_gradient(low=lowColors[input$select],
-                              high = highColors[input$select],
-                              trans = "log",
-                              name=titles[input$select],#aplicando o título de acordo com o dicionário
-                              labels = label_number(accuracy = 1, big.mark = ".",decimal.mark = ","))
-          #adicionando camada dos municípios com atuação da DPU
-          #geom_sf(data = filter(mapdata, Atuacao_DPU == "Sim"), fill = "#ff000010",  colour = "#ff000060")
-      } else if (!input$checkbox && input$mostrarfiltrados) {
+      # } else if (input$checkbox && !input$mostrarfiltrados) {
+      #   #com apenas a check box da dpu marcada
+      #   p <- p + #configurando a camada
+      #     #adicionando a camada de acordo com a variável
+      #     geom_sf(data = mapdata, aes( fill = as.numeric(.data[[input$select]])),  colour = "#00000010" ) +
+      #     #aplicando as cores de acordo com os dicionários
+      #     scale_fill_gradient(low=lowColors[input$select],
+      #                         high = highColors[input$select],
+      #                         trans = "log",
+      #                         name=titles[input$select],#aplicando o título de acordo com o dicionário
+      #                         labels = label_number(accuracy = 1, big.mark = ".",decimal.mark = ","))
+      #     #adicionando camada dos municípios com atuação da DPU
+      #     #geom_sf(data = filter(mapdata, Atuacao_DPU == "Sim"), fill = "#ff000010",  colour = "#ff000060")
+       } else if (input$mostrarfiltrados) {
         #se apenas a checkbox dos municípios filtrados estiver selecionada
         p <- p + #configurando a camada
           #adicionando a camada de acrodo com a variável
